@@ -49,42 +49,23 @@ app.get("/teams", (req,res)=>{
 
 // ==================== JOGOS ====================
 
-app.post("/matches", (req,res)=>{
-  const data = loadData();
-  const { team1_id, team2_id } = req.body;
-
-  const match = {
-    id: Date.now(),
-    team1_id,
-    team2_id,
-    score1: 0,
-    score2: 0
-  };
-
-  data.matches.push(match);
-  saveData(data);
-
-  res.json({ message: "Jogo criado" });
-});
-
 app.get("/matches", (req,res)=>{
   const data = loadData();
-  res.json(data.matches);
-});
 
-app.post("/matches/score", (req,res)=>{
-  const data = loadData();
-  const { id, score1, score2 } = req.body;
+  const jogos = data.matches.map(m => {
+    const t1 = data.teams.find(t => t.id == m.team1_id);
+    const t2 = data.teams.find(t => t.id == m.team2_id);
 
-  const match = data.matches.find(m => m.id == id);
+    return {
+      id: m.id,
+      team1: t1 ? t1.name : "Desconhecido",
+      team2: t2 ? t2.name : "Desconhecido",
+      score1: m.score1,
+      score2: m.score2
+    };
+  });
 
-  if (match) {
-    match.score1 = score1;
-    match.score2 = score2;
-    saveData(data);
-  }
-
-  res.json({ message: "Placar atualizado" });
+  res.json(jogos);
 });
 
 // ==============================================
