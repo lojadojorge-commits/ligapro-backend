@@ -50,3 +50,39 @@ app.get("/teams", (req,res)=>{
 });
 
 app.listen(3001, ()=>console.log("LigaPro backend ativo"));
+
+// CRIAR JOGO
+app.post("/matches", (req,res)=>{
+  const { team1_id, team2_id } = req.body;
+
+  db.query(
+    "INSERT INTO matches (team1_id, team2_id) VALUES (?,?)",
+    [team1_id, team2_id],
+    (err)=>{
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Jogo criado" });
+    }
+  );
+});
+
+// LISTAR JOGOS
+app.get("/matches", (req,res)=>{
+  db.query("SELECT * FROM matches", (err,result)=>{
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+// ATUALIZAR PLACAR
+app.post("/matches/score", (req,res)=>{
+  const { id, score1, score2 } = req.body;
+
+  db.query(
+    "UPDATE matches SET score1=?, score2=? WHERE id=?",
+    [score1, score2, id],
+    (err)=>{
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Placar atualizado" });
+    }
+  );
+});
