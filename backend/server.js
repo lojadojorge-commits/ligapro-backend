@@ -1,88 +1,92 @@
-
 import express from "express";
 import cors from "cors";
-import mysql from "mysql2";
+import fs from "fs";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// CONEXÃO COM MYSQL
-const db = mysql.createConnection({
-  host: "SEU_HOST",
-  user: "SEU_USUARIO",
-  password: "SUA_SENHA",
-  database: "SEU_BANCO"
-});
+const FILE = "data.json";
 
-db.connect(err => {
-  if (err) {
-    console.log("Erro no banco:", err);
-  } else {
-    console.log("Banco conectado");
+// carregar dados
+function loadData() {
+  if (!fs.existsSync(FILE)) {
+    return { teams: [], matches: [] };
   }
-});
+  return JSON.parse(fs.readFileSync(FILE));
+}
+
+// salvar dados
+function saveData(data) {
+  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+}
 
 // TESTE
 app.get("/", (req,res)=>res.send("LigaPro API rodando"));
 
-// CRIAR TIME
+// ==================== TIMES ====================
+
 app.post("/teams", (req,res)=>{
+  const data = loadData();
   const { name } = req.body;
 
-  db.query(
-    "INSERT INTO teams (name) VALUES (?)",
-    [name],
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Time salvo no banco" });
-    }
-  );
+  const team = {
+    id: Date.now(),
+    name
+  };
+
+  data.teams.push(team);
+  saveData(data);
+
+  res.json({ message: "Time salvo" });
 });
 
-// LISTAR TIMES
 app.get("/teams", (req,res)=>{
-  db.query("SELECT * FROM teams", (err, result)=>{
-    if (err) return res.status(500).json(err);
-    res.json(result);
-  });
+  const data = loadData();
+  res.json(data.teams);
 });
 
-app.listen(3001, ()=>console.log("LigaPro backend ativo"));
+// ==================== JOGOS ====================
 
-// CRIAR JOGO
 app.post("/matches", (req,res)=>{
+  const data = loadData();
   const { team1_id, team2_id } = req.body;
 
-  db.query(
-    "INSERT INTO matches (team1_id, team2_id) VALUES (?,?)",
-    [team1_id, team2_id],
-    (err)=>{
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Jogo criado" });
-    }
-  );
+  const match = {
+    id: Date.now(),
+    team1_id,
+    team2_id,
+    score1: 0,
+    score2: 0
+  };
+
+  data.matches.push(match);
+  saveData(data);
+
+  res.json({ message: "Jogo criado" });
 });
 
-// LISTAR JOGOS
 app.get("/matches", (req,res)=>{
-  db.query("SELECT * FROM matches", (err,result)=>{
-    if (err) return res.status(500).json(err);
-    res.json(result);
-  });
+  const data = loadData();
+  res.json(data.matches);
 });
 
-// ATUALIZAR PLACAR
 app.post("/matches/score", (req,res)=>{
+  const data = loadData();
   const { id, score1, score2 } = req.body;
 
-  db.query(
-    "UPDATE matches SET score1=?, score2=? WHERE id=?",
-    [score1, score2, id],
-    (err)=>{
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Placar atualizado" });
-    }
-  );
+  const match = data.matches.find(m => m.id == id);
+
+  if (match) {
+    match.score1 = score1;
+    match.score2 = score2;
+    saveData(data);
+  }
+
+  res.json({ message: "Placar atualizado" });
 });
+
+// ==============================================
+
+app.listen(3001, ()=>console.log("LigaPro backend ativo"));
