@@ -3,63 +3,110 @@ import cors from "cors";
 import fs from "fs";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
 const FILE = "data.json";
 
-// carregar dados
 function loadData() {
   if (!fs.existsSync(FILE)) {
-    return { teams: [], matches: [] };
+    return { users: [], leagues: {} };
   }
   return JSON.parse(fs.readFileSync(FILE));
 }
 
-// salvar dados
 function saveData(data) {
   fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
 }
 
-// TESTE
-app.get("/", (req,res)=>res.send("LigaPro API rodando"));
+// ================= USUÁRIOS =================
 
-// ==================== TIMES ====================
+// CADASTRO
+app.post("/register", (req,res)=>{
+  const data = loadData();
+  const { email, password } = req.body;
+
+  const exists = data.users.find(u => u.email === email);
+  if (exists) return res.status(400).json({ error: "Usuário já existe" });
+
+  const user = {
+    id: Date.now(),
+    email,
+    password,
+    plan: "free"
+  };
+
+  data.users.push(user);
+  data.leagues[user.id] = { teams: [], matches: [] };
+
+  saveData(data);
+
+  res.json({ message: "Usuário criado" });
+});
+
+// LOGIN
+app.post("/login", (req,res)=>{
+  const data = loadData();
+  const { email, password } = req.body;
+
+  const user = data.users.find(u => u.email === email && u.password === password);
+
+  if (!user) return res.status(401).json({ error: "Login inválido" });
+
+  res.json({ userId: user.id });
+});
+
+// ================= TIMES =================
 
 app.post("/teams", (req,res)=>{
   const data = loadData();
-  const { name } = req.body;
+  const { userId, name } = req.body;
 
-  const team = {
-    id: Date.now(),
-    name
-  };
+  const team = { id: Date.now(), name };
 
-  data.teams.push(team);
+  data.leagues[userId].teams.push(team);
   saveData(data);
 
-  res.json({ message: "Time salvo" });
+  res.json({ message: "Time criado" });
 });
 
-app.get("/teams", (req,res)=>{
+app.get("/teams/:userId", (req,res)=>{
   const data = loadData();
-  res.json(data.teams);
+  res.json(data.leagues[req.params.userId].teams);
 });
 
-// ==================== JOGOS ====================
+// ================= JOGOS =================
 
-app.get("/matches", (req,res)=>{
+app.post("/matches", (req,res)=>{
   const data = loadData();
+  const { userId, team1_id, team2_id } = req.body;
 
-  const jogos = data.matches.map(m => {
-    const t1 = data.teams.find(t => t.id == m.team1_id);
-    const t2 = data.teams.find(t => t.id == m.team2_id);
+  const match = {
+    id: Date.now(),
+    team1_id,
+    team2_id,
+    score1: 0,
+    score2: 0
+  };
+
+  data.leagues[userId].matches.push(match);
+  saveData(data);
+
+  res.json({ message: "Jogo criado" });
+});
+
+app.get("/matches/:userId", (req,res)=>{
+  const data = loadData();
+  const league = data.leagues[req.params.userId];
+
+  const jogos = league.matches.map(m => {
+    const t1 = league.teams.find(t => t.id == m.team1_id);
+    const t2 = league.teams.find(t => t.id == m.team2_id);
 
     return {
       id: m.id,
-      team1: t1 ? t1.name : "Desconhecido",
-      team2: t2 ? t2.name : "Desconhecido",
+      team1: t1?.name,
+      team2: t2?.name,
       score1: m.score1,
       score2: m.score2
     };
@@ -68,54 +115,4 @@ app.get("/matches", (req,res)=>{
   res.json(jogos);
 });
 
-// ==============================================
-
-app.listen(3001, ()=>console.log("LigaPro backend ativo"));
-
-// CLASSIFICAÇÃO
-app.get("/table", (req,res)=>{
-  const data = loadData();
-
-  const table = {};
-
-  // inicializa times
-  data.teams.forEach(t => {
-    table[t.id] = {
-      name: t.name,
-      points: 0,
-      goals_for: 0,
-      goals_against: 0
-    };
-  });
-
-  // percorre jogos
-  data.matches.forEach(m => {
-    const t1 = table[m.team1_id];
-    const t2 = table[m.team2_id];
-
-    if (!t1 || !t2) return;
-
-    t1.goals_for += m.score1;
-    t1.goals_against += m.score2;
-
-    t2.goals_for += m.score2;
-    t2.goals_against += m.score1;
-
-    if (m.score1 > m.score2) {
-      t1.points += 3;
-    } else if (m.score2 > m.score1) {
-      t2.points += 3;
-    } else {
-      t1.points += 1;
-      t2.points += 1;
-    }
-  });
-
-  // transforma em array e ordena
-  const ranking = Object.values(table).sort((a,b)=>{
-    if (b.points !== a.points) return b.points - a.points;
-    return (b.goals_for - b.goals_against) - (a.goals_for - a.goals_against);
-  });
-
-  res.json(ranking);
-});
+app.listen(3001, ()=>console.log("LigaPro SaaS rodando"));
