@@ -90,3 +90,51 @@ app.post("/matches/score", (req,res)=>{
 // ==============================================
 
 app.listen(3001, ()=>console.log("LigaPro backend ativo"));
+
+// CLASSIFICAÇÃO
+app.get("/table", (req,res)=>{
+  const data = loadData();
+
+  const table = {};
+
+  // inicializa times
+  data.teams.forEach(t => {
+    table[t.id] = {
+      name: t.name,
+      points: 0,
+      goals_for: 0,
+      goals_against: 0
+    };
+  });
+
+  // percorre jogos
+  data.matches.forEach(m => {
+    const t1 = table[m.team1_id];
+    const t2 = table[m.team2_id];
+
+    if (!t1 || !t2) return;
+
+    t1.goals_for += m.score1;
+    t1.goals_against += m.score2;
+
+    t2.goals_for += m.score2;
+    t2.goals_against += m.score1;
+
+    if (m.score1 > m.score2) {
+      t1.points += 3;
+    } else if (m.score2 > m.score1) {
+      t2.points += 3;
+    } else {
+      t1.points += 1;
+      t2.points += 1;
+    }
+  });
+
+  // transforma em array e ordena
+  const ranking = Object.values(table).sort((a,b)=>{
+    if (b.points !== a.points) return b.points - a.points;
+    return (b.goals_for - b.goals_against) - (a.goals_for - a.goals_against);
+  });
+
+  res.json(ranking);
+});
